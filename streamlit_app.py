@@ -304,7 +304,7 @@ def render_documentation():
         """)
 
     st.divider()
-    st.caption("GA Intelligence | Data documentation auto-generated from the Snowflake data model.")
+    st.caption("GA Intelligence | Data documentation for the Snowflake data model.")
 
 
 # Sidebar
