@@ -43,6 +43,13 @@ st.markdown("""
     h1 { letter-spacing: -0.02em; }
     h2 { font-size: 1.3rem !important; font-weight: 600; color: #E0E0E0; }
     h3 { font-size: 1.05rem !important; font-weight: 500; color: #B0B0B0; }
+    /* Pointer cursor on interactive elements */
+    .stRadio label, .stCheckbox label,
+    [data-baseweb="tab"],
+    [data-baseweb="select"] *,
+    .stButton button,
+    .stSelectbox div[data-baseweb="select"],
+    .stDownloadButton button { cursor: pointer !important; }
 </style>
 """, unsafe_allow_html=True)
 
