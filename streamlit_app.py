@@ -195,10 +195,130 @@ def compute_delta(df, col, date_col="DATE"):
     return round((recent - prior) / prior * 100, 1)
 
 
+# Documentation Page
+def render_documentation():
+    st.markdown("## :material/menu_book: Data Documentation")
+    st.caption("Everything behind the GA Intelligence dashboard - data lineage, schema, and the modeling decisions.")
+
+    st.info("This dashboard models the public Google Merchandise Store GA dataset (Aug 2016 - Aug 2017) into a star schema in Snowflake: 903K sessions and 4.1M hits.", icon=":material/lightbulb:")
+
+    doc_tab1, doc_tab2, doc_tab3, doc_tab4 = st.tabs([
+        ":material/source: Raw Data",
+        ":material/schema: Data Model",
+        ":material/visibility: Analytics Views",
+        ":material/insights: Key Decisions",
+    ])
+
+    with doc_tab1:
+        st.markdown("### Source Dataset")
+        st.markdown("""
+        Based on the **Google Analytics Sample** (Google Merchandise Store) - real
+        clickstream data for an online store selling Google-branded merchandise.
+
+        | Property | Value |
+        |---|---|
+        | **Source** | Google Merchandise Store (GA Sample) |
+        | **Period** | Aug 2016 - Aug 2017 (396 days) |
+        | **Sessions** | 903,653 |
+        | **Hits** | 4,153,675 |
+        | **Grain** | Session-level + hit-level event data |
+        """)
+        st.markdown("""
+        GA exports are deeply nested (sessions contain arrays of hits, each hit
+        containing page, e-commerce, and traffic structs). The raw export was
+        **flattened into two fact tables** plus a date dimension.
+        """)
+
+    with doc_tab2:
+        st.markdown("### Star Schema")
+        st.markdown("**`FACT_SESSIONS`** - one row per session (903,653 rows)")
+        st.dataframe(pd.DataFrame({
+            "Column": ["SESSION_ID", "VISITOR_ID", "DATE", "CHANNEL_GROUPING", "SESSIONS",
+                       "PAGEVIEWS", "BOUNCES", "TIME_ON_SITE_SEC", "TRANSACTIONS", "TOTAL_REVENUE",
+                       "DEVICE_CATEGORY", "BROWSER", "COUNTRY", "TRAFFIC_SOURCE", "TRAFFIC_MEDIUM"],
+            "Type": ["TEXT", "TEXT", "DATE", "TEXT", "NUMBER", "NUMBER", "NUMBER", "NUMBER",
+                     "NUMBER", "FLOAT", "TEXT", "TEXT", "TEXT", "TEXT", "TEXT"],
+            "Group": ["Key", "Key", "Date", "Acquisition", "Traffic", "Traffic", "Traffic",
+                      "Engagement", "E-commerce", "E-commerce", "Tech", "Tech", "Geo", "Acquisition", "Acquisition"],
+        }), hide_index=True, use_container_width=True)
+        st.caption("(plus geo, OS, campaign, referral, and is_mobile/is_true_direct flags)")
+
+        st.markdown("**`FACT_HITS`** - one row per hit/event (4,153,675 rows)")
+        st.dataframe(pd.DataFrame({
+            "Column": ["SESSION_ID", "DATE", "HIT_NUMBER", "HIT_TYPE", "PAGE_PATH", "PAGE_TITLE",
+                       "IS_ENTRANCE", "IS_EXIT", "ECOMMERCE_ACTION_TYPE", "TRANSACTION_ID", "TRANSACTION_REVENUE"],
+            "Type": ["TEXT", "DATE", "NUMBER", "TEXT", "TEXT", "TEXT", "BOOLEAN", "BOOLEAN",
+                     "TEXT", "TEXT", "FLOAT"],
+            "Description": ["FK to session", "Event date", "Sequence in session", "PAGE / EVENT / etc.",
+                            "URL path", "Page title", "First hit of session", "Last hit of session",
+                            "Funnel step", "Order ID", "Order revenue"],
+        }), hide_index=True, use_container_width=True)
+
+        st.markdown("**`DIM_DATE`** - calendar dimension (396 rows)")
+        st.markdown("Day-of-week, month, quarter, year, and weekend flag for time roll-ups.")
+
+    with doc_tab3:
+        st.markdown("### Analytics Views")
+        st.markdown("Pre-aggregated views keep the 4M+ row scans in Snowflake, not the app.")
+        st.dataframe(pd.DataFrame({
+            "View": ["V_DAILY_TRAFFIC", "V_ACQUISITION_CHANNELS", "V_GEO_SUMMARY",
+                     "V_ECOMMERCE_FUNNEL", "V_TOP_PAGES"],
+            "Purpose": [
+                "Daily sessions, pageviews, bounce rate, duration, new/returning users",
+                "Sessions, revenue & bounces per marketing channel (by day)",
+                "Sessions, revenue, bounce by country / device / browser",
+                "Daily revenue, transactions, conversion rate, avg order value",
+                "Page-level hits, entrances, exits, exit rate",
+            ],
+            "Feeds": ["Traffic tab", "Acquisition tab", "Geography & Devices tab",
+                      "E-Commerce tab", "Content tab"],
+        }), hide_index=True, use_container_width=True)
+
+    with doc_tab4:
+        st.markdown("### Key Data Analysis Decisions")
+        st.markdown("""
+        **1. Two-grain fact model**
+        Sessions and hits live in **separate fact tables** (`FACT_SESSIONS`, `FACT_HITS`).
+        Session-level metrics (bounce, revenue, channel) don't mix with hit-level
+        page/event analysis, avoiding fan-out and double counting.
+
+        **2. Aggregate in the warehouse, not the app**
+        Every dashboard tab reads from a **view** that pre-aggregates the 4M+ hit rows.
+        The app pulls compact result sets, keeping it fast on Community Cloud.
+
+        **3. 7-day rolling averages**
+        Daily web traffic is noisy (weekday/weekend swings), so trend lines use a
+        **7-day moving average** for sessions, pageviews, bounce, revenue, and conversion.
+
+        **4. Week-over-week deltas**
+        KPI cards compare the **last 7 days vs the prior 7 days**. Bounce rate uses
+        an *inverse* delta color (down = good).
+
+        **5. Channel grouping**
+        Traffic is bucketed into standard GA channels (Organic Search, Direct, Social,
+        Referral, Paid Search, Affiliates, Display) each with a fixed brand color.
+
+        **6. Decimal handling**
+        Snowflake returns numerics as `Decimal`; `run_query()` auto-casts object
+        columns to numeric so pandas math and Altair charts work.
+        """)
+
+    st.divider()
+    st.caption("GA Intelligence | Data documentation auto-generated from the Snowflake data model.")
+
+
 # Sidebar
 with st.sidebar:
     st.markdown("### :material/monitoring: Analytics")
     st.markdown("*Google Merchandise Store*")
+    st.divider()
+
+    page = st.radio(
+        "Navigate",
+        ["Dashboard", "About the Data"],
+        key="nav_page",
+        label_visibility="collapsed",
+    )
     st.divider()
 
     time_range = st.selectbox(
@@ -217,6 +337,11 @@ with st.sidebar:
     if st.button(":material/restart_alt: Reset Cache", use_container_width=True):
         st.cache_data.clear()
         st.rerun()
+
+# Render documentation page and stop if selected
+if page == "About the Data":
+    render_documentation()
+    st.stop()
 
 # Header
 st.markdown("## :material/monitoring: Google Analytics Intelligence")
