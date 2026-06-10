@@ -67,6 +67,13 @@ conn = st.connection("snowflake")
 
 def run_query(sql):
     df = conn.query(sql)
+    # Convert Decimal columns to float for pandas compatibility
+    for col in df.columns:
+        if df[col].dtype == object:
+            try:
+                df[col] = pd.to_numeric(df[col])
+            except (ValueError, TypeError):
+                pass
     return df
 
 
@@ -413,6 +420,8 @@ with tab_acquisition:
     if not acq_df.empty:
         display_df = acq_df.copy()
         display_df.columns = ["Channel", "Sessions", "New Users", "Revenue", "Bounces", "Pageviews"]
+        for c in ["Sessions", "New Users", "Revenue", "Bounces", "Pageviews"]:
+            display_df[c] = pd.to_numeric(display_df[c], errors="coerce")
         display_df["Conv. Rate"] = (display_df["Revenue"] / display_df["Sessions"]).round(2)
         st.dataframe(display_df[["Channel", "Sessions", "New Users", "Revenue", "Conv. Rate"]], hide_index=True)
 
