@@ -19,7 +19,7 @@ st.set_page_config(
 # Custom CSS
 st.markdown("""
 <style>
-    .block-container { padding-top: 1rem; padding-bottom: 0; max-width: 100%; }
+    .block-container { padding-top: 3rem; padding-bottom: 0; max-width: 100%; }
     [data-testid="stMetric"] {
         background: linear-gradient(135deg, #1B1F2A 0%, #141820 100%);
         border: 1px solid rgba(41, 181, 232, 0.15);
